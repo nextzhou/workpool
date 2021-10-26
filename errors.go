@@ -2,8 +2,10 @@ package workpool
 
 import "fmt"
 
+// Recover provides a hook to catch the panic of a task running.
 type Recover = func(err ErrPanic) error
 
+// ErrPanic consists of various information about a panic
 type ErrPanic struct {
 	Recover interface{}
 	Stack   []byte
