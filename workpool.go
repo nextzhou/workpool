@@ -78,12 +78,12 @@ func (w *Workpool) Wait() error {
 		panic(err)
 	}
 
-	err, _ := w.err.Load().(error)
+	err, _ := w.err.Load().(uniformError)
 
-	if err == nil && w.skippingNum > 0 && !w.conf.ignoreSkipping {
+	if err.error == nil && w.skippingNum > 0 && !w.conf.ignoreSkipping {
 		return ErrSkipPendingTask{SKippingTaskCount: uint(w.skippingNum)}
 	}
-	return err
+	return err.error
 }
 
 func (w *Workpool) workLoop() {
@@ -118,7 +118,7 @@ func (w *Workpool) workLoop() {
 }
 
 func (w *Workpool) setErr(err error) {
-	if !w.err.CompareAndSwap(nil, err) {
+	if !w.err.CompareAndSwap(nil, uniformError{err}) {
 		return
 	}
 	w.cancel()

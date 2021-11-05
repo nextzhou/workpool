@@ -182,6 +182,7 @@ func TestWithRecover(t *testing.T) {
 			So(w.Wait(), ShouldBeError, "dont panic")
 			So(panicErr.Recover, ShouldEqual, "foo")
 			So(panicErr.Error(), ShouldContainSubstring, "foo")
+
 		})
 		Convey("convert panic to ok", func() {
 			var panicErr ErrPanic
@@ -254,6 +255,18 @@ func TestWithExitTogether(t *testing.T) {
 			w.Go(panicTask)
 			So(w.Wait(), ShouldBeError)
 			So(time.Since(start), ShouldBeLessThan, sleepTime)
+		})
+		Convey("different error types", func() {
+			for i := 0; i < 10000; i++ {
+				w := New(context.Background(),WithChain(PanicAsError))
+				w.Go(func(context.Context) error {
+					panic("bar")
+				})
+				w.Go(func(context.Context) error {
+					return errors.New("foo")
+				})
+				_ = w.Wait()
+			}
 		})
 		Convey("ignore panic exit", func() {
 			w := New(context.Background(), WithExitTogether(), WithRecover(func(err ErrPanic) error {
