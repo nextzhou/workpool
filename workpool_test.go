@@ -1,3 +1,4 @@
+//nolint:gochecknoglobals,funlen
 package workpool
 
 import (
@@ -14,26 +15,33 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-var emptyTask Task = func(ctx context.Context) error { return nil }
-var blockTask Task = func(ctx context.Context) error {
-	<-ctx.Done()
-	return nil
-}
+var (
+	emptyTask Task = func(ctx context.Context) error { return nil }
+	blockTask Task = func(ctx context.Context) error {
+		<-ctx.Done()
+		return nil
+	}
+)
+
 var panicTask Task = func(ctx context.Context) error {
 	panic("foo")
 }
+
 var errTask Task = func(ctx context.Context) error {
-	return errors.New("bar")
+	return errors.New("bar") //nolint:goerr113
 }
 
-var sleepTime = 100 * time.Millisecond
-var sleepTask Task = func(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-	case <-time.After(sleepTime):
+var (
+	sleepTime      = 100 * time.Millisecond
+	sleepTask Task = func(ctx context.Context) error {
+		select {
+		case <-ctx.Done():
+		case <-time.After(sleepTime):
+		}
+		return nil
 	}
-	return nil
-}
+)
+
 var ignoreCtxSleepTask Task = func(ctx context.Context) error {
 	return sleepTask(context.Background())
 }
@@ -147,7 +155,7 @@ func TestWorkpool(t *testing.T) {
 
 func TestWithParallelLimit(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	randomParallelNum := uint(rand.Uint32()%10) + 1
+	randomParallelNum := uint(rand.Uint32()%10) + 1 //nolint:gosec
 	Convey("WithParallelLimit"+strconv.Itoa(int(randomParallelNum)), t, func() {
 		var ts taskStat
 		w := New(context.Background(), WithParallelLimit(randomParallelNum))
@@ -158,7 +166,7 @@ func TestWithParallelLimit(t *testing.T) {
 		So(ts.maxParallel, ShouldBeLessThanOrEqualTo, randomParallelNum)
 		So(ts.currentParallel, ShouldEqual, 0)
 		So(ts.totalNum, ShouldEqual, 20)
-		//t.Logf("limit: %d, max: %d\n", randomParallelNum, ts.maxParallel)
+		// t.Logf("limit: %d, max: %d\n", randomParallelNum, ts.maxParallel)
 	})
 }
 
@@ -176,13 +184,12 @@ func TestWithRecover(t *testing.T) {
 			var panicErr ErrPanic
 			w := New(context.Background(), WithRecover(func(err ErrPanic) error {
 				panicErr = err
-				return errors.New("dont panic")
+				return errors.New("don't panic") //nolint:goerr113
 			}))
 			w.Go(panicTask)
-			So(w.Wait(), ShouldBeError, "dont panic")
+			So(w.Wait(), ShouldBeError, "don't panic")
 			So(panicErr.Recover, ShouldEqual, "foo")
 			So(panicErr.Error(), ShouldContainSubstring, "foo")
-
 		})
 		Convey("convert panic to ok", func() {
 			var panicErr ErrPanic
@@ -222,7 +229,6 @@ func TestWithExitTogether(t *testing.T) {
 			w.Go(sleepTask)
 			So(w.Wait(), ShouldBeNil)
 			So(time.Since(start), ShouldBeGreaterThanOrEqualTo, sleepTime)
-
 		})
 		Convey("non error exit", func() {
 			w := New(context.Background(), WithExitTogether())
@@ -258,13 +264,9 @@ func TestWithExitTogether(t *testing.T) {
 		})
 		Convey("different error types", func() {
 			for i := 0; i < 10000; i++ {
-				w := New(context.Background(),WithChain(PanicAsError))
-				w.Go(func(context.Context) error {
-					panic("bar")
-				})
-				w.Go(func(context.Context) error {
-					return errors.New("foo")
-				})
+				w := New(context.Background(), WithChain(PanicAsError))
+				w.Go(panicTask)
+				w.Go(errTask)
 				_ = w.Wait()
 			}
 		})
@@ -289,7 +291,7 @@ func TestWithIgnoreSkippingPendingErr(t *testing.T) {
 			w := New(ctx)
 			var ts taskStat
 			rand.Seed(time.Now().UnixNano())
-			cancelIdx := rand.Intn(100)
+			cancelIdx := rand.Intn(100) //nolint:gosec
 			for i := 0; i < 100; i++ {
 				if i == cancelIdx {
 					cancel()

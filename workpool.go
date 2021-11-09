@@ -128,7 +128,7 @@ func (w *Workpool) runTask(task Task) error {
 	ctx := w.ctx
 	if ctx.Err() != nil {
 		atomic.AddUint64(&w.skippingNum, 1)
-		return nil
+		return nil //nolint:nilerr
 	}
 	if timeout := w.conf.taskTimeout; timeout > 0 {
 		var cancel context.CancelFunc

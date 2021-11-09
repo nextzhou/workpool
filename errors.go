@@ -2,7 +2,7 @@ package workpool
 
 import "fmt"
 
-// uniformError ensures that all errors have the same type in atomic.Value.CompareAndSwap()
+// uniformError ensures that all errors have the same type in atomic.Value.CompareAndSwap().
 type uniformError struct {
 	error
 }
@@ -10,7 +10,7 @@ type uniformError struct {
 // Recover provides a hook to catch the panic of a task running.
 type Recover = func(err ErrPanic) error
 
-// ErrPanic consists of various information about a panic
+// ErrPanic consists of various information about a panic.
 type ErrPanic struct {
 	Recover interface{}
 	Stack   []byte
