@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 type Workpool struct {
@@ -15,8 +16,8 @@ type Workpool struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	taskC          chan Task
-	err            atomic.Value
-	unhandledPanic atomic.Value
+	err            unsafe.Pointer // *uniformError
+	unhandledPanic unsafe.Pointer // *ErrPanic
 	skippingNum    uint64
 }
 
@@ -74,11 +75,14 @@ func (w *Workpool) Wait() error {
 	close(w.taskC)
 	w.wg.Wait()
 
-	if err, ok := w.unhandledPanic.Load().(ErrPanic); ok {
-		panic(err)
+	if ptr := atomic.LoadPointer(&w.unhandledPanic); ptr != nil {
+		panic(*(*ErrPanic)(ptr))
 	}
 
-	err, _ := w.err.Load().(uniformError)
+	var err uniformError
+	if ptr := atomic.LoadPointer(&w.err); ptr != nil {
+		err = *(*uniformError)(ptr)
+	}
 
 	if err.error == nil && w.skippingNum > 0 && !w.conf.ignoreSkipping {
 		return ErrSkipPendingTask{SKippingTaskCount: uint(w.skippingNum)}
@@ -118,7 +122,7 @@ func (w *Workpool) workLoop() {
 }
 
 func (w *Workpool) setErr(err error) {
-	if !w.err.CompareAndSwap(nil, uniformError{err}) {
+	if !atomic.CompareAndSwapPointer(&w.err, nil, unsafe.Pointer(&uniformError{err})) {
 		return
 	}
 	w.cancel()
@@ -145,15 +149,18 @@ func (w *Workpool) runTask(task Task) error {
 func (w *Workpool) wrapRecover(r Recover) Recover {
 	if r == nil {
 		return func(err ErrPanic) error {
-			w.unhandledPanic.CompareAndSwap(nil, err)
+			heapErr := new(ErrPanic)
+			*heapErr = err
+			atomic.CompareAndSwapPointer(&w.unhandledPanic, nil, unsafe.Pointer(heapErr))
 			return err
 		}
 	}
 	return func(err ErrPanic) (newErr error) {
 		defer func() {
 			if r := recover(); r != nil {
-				newErr = ErrPanic{Recover: r, Stack: debug.Stack()}
-				w.unhandledPanic.CompareAndSwap(nil, newErr)
+				newErr := new(ErrPanic)
+				*newErr = ErrPanic{Recover: r, Stack: debug.Stack()}
+				atomic.CompareAndSwapPointer(&w.unhandledPanic, nil, unsafe.Pointer(newErr))
 			}
 		}()
 		newErr = r(err)
