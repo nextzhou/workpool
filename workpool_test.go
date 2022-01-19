@@ -259,7 +259,9 @@ func TestWithExitTogether(t *testing.T) {
 			start := time.Now()
 			w.Go(sleepTask)
 			w.Go(panicTask)
-			So(w.Wait(), ShouldBeError)
+			err := w.Wait()
+			So(err, ShouldBeError)
+			So(err, ShouldHaveSameTypeAs, ErrPanic{})
 			So(time.Since(start), ShouldBeLessThan, sleepTime)
 		})
 		Convey("different error types", func() {
@@ -350,6 +352,43 @@ func TestWithChain(t *testing.T) {
 		})
 		So(w.Wait(), ShouldBeNil)
 		So(processMarks, ShouldResemble, []int{1, 2, 3, 0, 3, 2, 1})
+	})
+}
+
+func TestTask_Go(t *testing.T) {
+	Convey("go single task without pool", t, func() {
+		Convey("just go", func() {
+			wait := emptyTask.Go(context.Background())
+			So(wait, ShouldNotBeNil)
+			So(wait(), ShouldBeNil)
+		})
+		Convey("wait the task done", func() {
+			start := time.Now()
+			wait := sleepTask.Go(context.Background())
+			So(wait(), ShouldBeNil)
+			So(time.Since(start), ShouldBeGreaterThanOrEqualTo, sleepTime)
+		})
+		Convey("context cancel the task", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			wait := blockTask.Go(ctx)
+			cancel()
+			So(wait(), ShouldBeNil)
+		})
+		Convey("take task error", func() {
+			wait := errTask.Go(context.Background())
+			So(wait(), ShouldBeError)
+		})
+		Convey("panic on wait function", func() {
+			wait := panicTask.Go(context.Background())
+			So(func() { _ = wait() }, ShouldPanic)
+		})
+		Convey("panic as error", func() {
+			task := PanicAsError(panicTask)
+			wait := task.Go(context.Background())
+			err := wait()
+			So(err, ShouldBeError)
+			So(err, ShouldHaveSameTypeAs, ErrPanic{})
+		})
 	})
 }
 

@@ -27,6 +27,7 @@ err := wp.Wait() // 在这里等待所有任务完成，并处理错误与 panic
 - [x] 轻量级的 fork-join 并发模型，惰性扩展工作协程。
 - [x] 收集子任务的错误与 panic，并在 `Workpool.Wait()` 函数中汇总。
 - [x] 通过`Context`控制子任务生命周期，使得所有工作协程能保证在 `Workpool.Wait()` 都被即时释放。
+- [x] 脱离 `Workpool` 的单个 `Task` 也可以安全地异步执行。
 - [ ] 支持基于 `channel` 生产-消费者 的任务，生产者任务全部完成后自动通知消费者任务（依赖泛型）
 
 ## 设计
@@ -61,3 +62,26 @@ wp.Go(PanicAsErr(task))               // 单独对某个 Task 使用
 |TaskWrapper|功能|
 |:----------|:---|
 |PanicAsError|子任务 panic 会转换成错误|
+
+## 单任务
+
+有时只需要异步地执行单个任务，过后再检查其执行结果。 这时如果再使用 `Workpool` 就显得过于繁琐了。 
+
+不过我们还可以调用 `Task.Go(context.Context)` 启动异步任务，而无需新建 `Workpool`。
+该函数会返回一个`TaskWait`，它是`func() error` 的别名，执行返回的 `TaskWait` 时会等待任务结束并返回结果。
+
+```go
+task := workpool.Task(func(context.Context) error {
+    // order a coffee
+})
+waitCoffee := task.Go(context.TODO())
+
+// save the world
+// balabala
+
+if err := waitCoffee(); err == nil {
+    // enjoy your coffee
+}
+```
+
+与在 `Workpool` 中执行 `Task` 一致，`Task` 中的所有错误或 `panic` 都会收集到 `wait()` 中抛出。同时你也可以使用 `PanicAsError` 包装需要异步执行的单任务。
