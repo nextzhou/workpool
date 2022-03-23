@@ -231,7 +231,7 @@ func TestWithExitTogether(t *testing.T) {
 			So(time.Since(start), ShouldBeGreaterThanOrEqualTo, sleepTime)
 		})
 		Convey("non error exit", func() {
-			w := New(context.Background(), WithExitTogether())
+			w := New(context.Background(), WithExitTogether(), WithIgnoreSkippingPendingErr())
 			start := time.Now()
 			w.Go(sleepTask)
 			w.Go(emptyTask)
@@ -255,7 +255,7 @@ func TestWithExitTogether(t *testing.T) {
 			So(time.Since(start), ShouldBeLessThan, sleepTime)
 		})
 		Convey("panic as error exit", func() {
-			w := New(context.Background(), WithExitTogether(), WithChain(PanicAsError))
+			w := New(context.Background(), WithExitTogether(), WithChain(PanicAsError), WithIgnoreSkippingPendingErr())
 			start := time.Now()
 			w.Go(sleepTask)
 			w.Go(panicTask)
@@ -388,6 +388,123 @@ func TestTask_Go(t *testing.T) {
 			err := wait()
 			So(err, ShouldBeError)
 			So(err, ShouldHaveSameTypeAs, ErrPanic{})
+		})
+	})
+}
+
+func TestPhasedTask(t *testing.T) {
+	milestone1, milestone2 := "foo", "bar"
+	Convey("phased task", t, func() {
+		Convey("milestone", func() {
+			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+				helper.MarkAMilestone(milestone1)
+				return nil
+			})
+			wait := task.Go(context.Background())
+
+			milestone, status := supervisor.WaitMilestone(context.Background())
+			So(status.IsOK(), ShouldBeTrue)
+			So(milestone, ShouldEqual, milestone1)
+			So(wait(), ShouldBeNil)
+		})
+
+		Convey("wait a milestone", func() {
+			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+				helper.MarkAMilestone(milestone1)
+				time.Sleep(sleepTime)
+				helper.MarkAMilestone(milestone2)
+				return nil
+			})
+			wait := task.Go(context.Background())
+			milestone, status := supervisor.WaitMilestone(context.Background())
+			startAt := time.Now()
+
+			So(time.Since(startAt), ShouldBeLessThan, sleepTime)
+			So(status.IsOK(), ShouldBeTrue)
+			So(milestone, ShouldEqual, milestone1)
+
+			ctx, _ := context.WithTimeout(context.Background(), 0) //nolint: govet
+			milestone, status = supervisor.WaitMilestone(ctx)
+
+			So(time.Since(startAt), ShouldBeLessThan, sleepTime)
+			So(status.IsOK(), ShouldBeFalse)
+			So(milestone, ShouldBeNil)
+			So(status, ShouldEqual, phasedTaskStatusContextDone)
+
+			ctx, _ = context.WithTimeout(context.Background(), 2*sleepTime) //nolint: govet
+			milestone, status = supervisor.WaitMilestone(ctx)
+
+			So(time.Since(startAt), ShouldBeBetween, sleepTime, 2*sleepTime)
+			So(status.IsOK(), ShouldBeTrue)
+			So(milestone, ShouldEqual, milestone2)
+
+			ctx, _ = context.WithTimeout(context.Background(), sleepTime) //nolint: govet
+			milestone, status = supervisor.WaitMilestone(ctx)
+
+			So(status, ShouldEqual, phasedTaskStatusTaskDone)
+			So(milestone, ShouldBeNil)
+
+			So(wait(), ShouldBeNil)
+		})
+
+		Convey("phased task without milestone", func() {
+			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+				return nil
+			})
+			task.Go(context.Background())
+			ctx, _ := context.WithTimeout(context.Background(), sleepTime) //nolint: govet
+			milestone, status := supervisor.WaitMilestone(ctx)
+			So(status, ShouldEqual, phasedTaskStatusTaskDone)
+			So(milestone, ShouldBeNil)
+		})
+		Convey("cancel task when milestone timeout", func() {
+			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+				helper.MarkAMilestone(milestone1)
+				<-ctx.Done()
+				helper.MarkAMilestone(milestone2)
+				return nil
+			})
+
+			wait := task.Go(context.Background())
+
+			ctx, _ := context.WithTimeout(context.Background(), sleepTime) //nolint: govet
+			milestone, status := supervisor.WaitMilestoneOrCancel(ctx)
+			So(status.IsOK(), ShouldBeTrue)
+			So(milestone, ShouldEqual, milestone1)
+
+			milestone, status = supervisor.WaitMilestoneOrCancel(ctx)
+			So(status, ShouldEqual, phasedTaskStatusContextDone)
+			So(milestone, ShouldBeNil)
+
+			So(wait(), ShouldBeNil)
+		})
+		Convey("skipped phased task", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+				helper.MarkAMilestone(milestone1)
+				return nil
+			})
+
+			wp := New(ctx)
+			wp.Go(task)
+			milestone, status := supervisor.WaitMilestone(ctx)
+			So(milestone, ShouldBeNil)
+			So(status.IsContextDone(), ShouldBeTrue)
+			So(status.IsTaskNotRunning(), ShouldBeTrue)
+			So(wp.Wait(), ShouldBeError, "skip 1 pending tasks")
+		})
+		Convey("not-running phased task", func() {
+			_, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+				helper.MarkAMilestone(milestone1)
+				return nil
+			})
+			ctx, _ := context.WithTimeout(context.Background(), time.Millisecond) //nolint: govet
+			milestone, status := supervisor.WaitMilestoneOrCancel(ctx)
+			So(milestone, ShouldBeNil)
+			So(status.IsContextDone(), ShouldBeTrue)
+			So(status.IsTaskNotRunning(), ShouldBeTrue)
 		})
 	})
 }

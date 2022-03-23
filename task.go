@@ -27,7 +27,7 @@ func (t Task) Go(ctx context.Context) TaskWait {
 		}
 	}()
 
-	//nolint: errorlint
+	//nolint: errorlint,forcetypeassert
 	return func() error {
 		err := <-errC
 		if err == nil {
