@@ -511,6 +511,70 @@ func TestWraps_PhasedTask(t *testing.T) {
 	})
 }
 
+func TestWraps_RunStopTask(t *testing.T) {
+	Convey("RunStopTask wrap", t, func() {
+		var runErr, stopErr error
+		var runPanic, stopPanic bool
+		ctx, cancel := context.WithCancel(context.Background())
+		run := func() error {
+			if runPanic {
+				panic("panic at run")
+			}
+			<-ctx.Done()
+			time.Sleep(sleepTime)
+			return runErr
+		}
+		stop := func() error {
+			if stopPanic {
+				panic("panic at stop")
+			}
+			cancel()
+			return stopErr
+		}
+		task := Wraps.RunStopTask(run, stop)
+		Convey("stop task, wait `run` done", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), sleepTime)
+			defer cancel()
+			wait := task.Go(ctx)
+			startAt := time.Now()
+			So(wait(), ShouldBeNil)
+			So(time.Since(startAt), ShouldBeGreaterThanOrEqualTo, 2*sleepTime)
+		})
+		Convey("`stop` error", func() {
+			stopErr = errors.New("stop error") //nolint:goerr113
+			ctx, cancel := context.WithTimeout(context.Background(), sleepTime)
+			defer cancel()
+			wait := task.Go(ctx)
+			So(wait(), ShouldBeError, "stop error")
+			stopErr = nil
+		})
+		Convey("`run` error", func() {
+			runErr = errors.New("run error") //nolint:goerr113
+			ctx, cancel := context.WithTimeout(context.Background(), sleepTime)
+			defer cancel()
+			wait := task.Go(ctx)
+			So(wait(), ShouldBeError, "run error")
+			runErr = nil
+		})
+		Convey("panic at `run`", func() {
+			runPanic = true
+			ctx, cancel := context.WithTimeout(context.Background(), sleepTime)
+			defer cancel()
+			wait := task.Go(ctx)
+			So(func() { _ = wait() }, ShouldPanic)
+			runPanic = false
+		})
+		Convey("panic at `stop`", func() {
+			stopPanic = true
+			ctx, cancel := context.WithTimeout(context.Background(), sleepTime)
+			defer cancel()
+			wait := task.Go(ctx)
+			So(func() { _ = wait() }, ShouldPanic)
+			stopPanic = false
+		})
+	})
+}
+
 func BenchmarkGo0(b *testing.B) {
 	b.ReportAllocs()
 	wp := New(context.Background())

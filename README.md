@@ -60,10 +60,11 @@ wp := New(ctx, Options.WrapsChain(Wraps.PanicAsErr)) // 配合 Options.WrapsChai
 wp.Go(Wraps.PanicAsErr(task))               // 单独对某个 Task 使用
 ```
 
-| TaskWrapper        | 功能               |
-|:-------------------|:-----------------|
-| Wraps.PanicAsError | 子任务 panic 会转换成错误 |
-| Wraps.Phased       | 将分阶段任务转成普通任务     |
+| TaskWrapper        | 功能                                                      |
+|:-------------------|:--------------------------------------------------------|
+| Wraps.PanicAsError | 子任务 panic 会转换成错误                                        |
+| Wraps.Phased       | 将分阶段任务转成普通任务, 详见 [分阶段任务](#分阶段任务)                        |
+| Wraps.RunStopTask | 将某些停止执行单独出来的任务转换为ctx控制的任务, 详见 [单独Stop函数任务](#单独stop函数任务) |
 
 ## 单任务
 
@@ -155,3 +156,26 @@ initResult, status := supervisor.WaitMilestoneOrCancel(ctx)
 |IsContextDone()|ctx done 并且未能取到里程碑| 可能与 IsTaskNotRunning() 共存 |
 |IsTaskDone()|任务结束了，但并没有产生里程碑||
 |IsTaskNotRunning()| ctx done 时还任务还为开始运行| 一定会与 IsContextDone() 共存   |
+
+## 单独Stop函数任务
+
+有些现有的长时间执行的服务并不是由`ctx`来控制停止，
+而是提供一个单独的 `Stop`/`Close` 之类的函数来控制关闭。
+
+例如 `http.Server` 通过 `Serve()` 函数启动服务、通过 `net.Listener.Close()` 停止服务。
+
+`Wraps.RunStopTask()` 提供一个简单的包装将这类型的任务转换成 `workpool.Task` 类型。
+
+还是以 `http.Server` 为例，通过以下代码即可转换成 `workpool.Task` 任务：
+
+```go
+task := Wraps.RunStopTask(func() error { // run function
+    err := srv.Serve(l)
+    if errors.Is(err, http.ErrServerClosed) { // ignore ServerClosed error
+        return nil
+    }
+    return err
+}, func() error { // stop function
+    return l.Close()
+})
+```

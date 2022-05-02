@@ -56,3 +56,18 @@ func PanicAsError(t Task) Task {
 		return
 	}
 }
+
+func RunStopTask(run, stop func() error) Task {
+	var task Task = func(ctx context.Context) error {
+		return run()
+	}
+	return func(ctx context.Context) error {
+		wait := task.Go(ctx)
+
+		<-ctx.Done()
+		if err := stop(); err != nil {
+			return err
+		}
+		return wait()
+	}
+}

@@ -28,6 +28,10 @@ func (wraps) Phased(task wpcore.PhasedTask) (Task, wpcore.PhasedTaskSupervisor) 
 	return wpcore.Phased(task)
 }
 
+func (wraps) RunStopTask(run, stop func() error) Task {
+	return wpcore.RunStopTask(run, stop)
+}
+
 // options exports options from wpcore.
 type options struct{}
 
