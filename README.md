@@ -9,7 +9,7 @@ workpool 实现了一个 [fork-join](https://zh.wikipedia.org/wiki/Fork-join%E6%
 
 ```go
 // 新建 Workpool，并限制最大并发数为 4
-wp := workpool.New(context.TODO(), workpool.WithParallelLimit(4))
+wp := workpool.New(context.TODO(), workpool.Options.ParallelLimit(4))
 
 for _, task := range tasks {
     task := task // shadow task varible
@@ -35,42 +35,42 @@ err := wp.Wait() // 在这里等待所有任务完成，并处理错误与 panic
 
  `New()`、`Go()`、`Wait()` 三段式分别对应 `config`、`fork`、`join`
 
-### Option
+### Options
 
-`Option` 可在 `New()` 传入，例如 `wp := New(ctx, WithTaskTimeout(time.Second), WithChain(PanicAsErr))`
+`Option` 可在 `New()` 传入，例如 `wp := New(ctx, Options.TaskTimeout(time.Second), Options.Chain(Wraps.PanicAsErr))`
 
-|Option|功能|
-|:-----|:-----|
-|WithTaskTimeout(time.Duration)|为每个任务设置独立的超时|
-|WithParallelLimit(uint)|子任务最大并发限制|
-|WithExitTogether()|当有任意子任务完成时通知其他子任务退出，一般在启动多个常驻服务时使用|
-|WithChain(...TaskWrapper)|为每个`Task`添加传入的`TaskWrapper`，作用顺序从做至右|
-|WithRecover(Recover)|自定义当子任务panic时如何处理|
-|WithIgnoreSkippingPendingErr()|跳过了部分未执行任务不视为错误|
+| Option                                 | 功能                                       |
+|:---------------------------------------|:-----------------------------------------|
+| Options.TaskTimeout(time.Duration)     | 为每个任务设置独立的超时                             |
+| Options.ParallelLimit(uint)            | 子任务最大并发限制                                |
+| Options.ExitTogether()                 | 当有任意子任务完成时通知其他子任务退出，一般在启动多个常驻服务时使用       |
+| Options.WrapsChain(...wpcore.TaskWrap) | 为每个`Task`添加传入的`wpcore.TaskWrap`，作用顺序从做至右 |
+| Options.Recover(wpcore.Recover)        | 自定义当子任务panic时如何处理                        |
+| Options.IgnoreSkippingPendingErr()     | 跳过了部分未执行任务不视为错误                          |
 
-### TaskWrapper
+### Wraps
 
-`TaskWrapper` 将 `Task` 包装成新的 `Task`，例如记录 metrics 等等， 可以按照需求自行扩展。
+`TaskWrap` 将 `Task` 包装成新的 `Task`，例如记录 metrics 等等， 可以按照需求自行扩展。
 
-一般与 `WithChain()` 配合使用，可自动应用到所有 `Task` 上。
+一般与 `Options.WrapsChain()` 配合使用，可自动应用到所有 `Task` 上。
 
 ```go
-wp := New(ctx, WithChain(PanicAsErr)) // 配合 WithChain() 使用
+wp := New(ctx, Options.WrapsChain(Wraps.PanicAsErr)) // 配合 Options.WrapsChain() 使用
 
-wp.Go(PanicAsErr(task))               // 单独对某个 Task 使用
+wp.Go(Wraps.PanicAsErr(task))               // 单独对某个 Task 使用
 ```
 
-|TaskWrapper| 功能               |
-|:----------|:-----------------|
-|PanicAsError| 子任务 panic 会转换成错误 |
-|Phased| 将分阶段任务转成普通任务     |
+| TaskWrapper        | 功能               |
+|:-------------------|:-----------------|
+| Wraps.PanicAsError | 子任务 panic 会转换成错误 |
+| Wraps.Phased       | 将分阶段任务转成普通任务     |
 
 ## 单任务
 
 有时只需要异步地执行单个任务，过后再检查其执行结果。 这时如果再使用 `Workpool` 就显得过于繁琐了。 
 
 不过我们还可以调用 `Task.Go(context.Context)` 启动异步任务，而无需新建 `Workpool`。
-该函数会返回一个`TaskWait`，它是`func() error` 的别名，执行返回的 `TaskWait` 时会等待任务结束并返回结果。
+该函数会返回一个`wpcore.TaskWait`，它是`func() error` 的别名，执行返回的 `TaskWait` 时会等待任务结束并返回结果。
 
 ```go
 task := workpool.Task(func(context.Context) error {
@@ -86,7 +86,7 @@ if err := waitCoffee(); err == nil {
 }
 ```
 
-与在 `Workpool` 中执行 `Task` 一致，`Task` 中的所有错误或 `panic` 都会收集到 `wait()` 中抛出。同时你也可以使用 `PanicAsError` 包装需要异步执行的单任务。
+与在 `Workpool` 中执行 `Task` 一致，`Task` 中的所有错误或 `panic` 都会收集到 `wait()` 中抛出。同时你也可以使用 `Wraps.PanicAsError` 包装需要异步执行的单任务。
 
 ## 分阶段任务
 
@@ -115,7 +115,7 @@ wp.Go(func(ctx context.Context) error {
 ```go
 // construct wp、ctx ...
 
-task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+task, supervisor := Wraps.Phased(func(ctx context.Context, helper wpcore.PhasedTaskHelper) error {
     err := taskInit(ctx)
     if err != nil {
     	return err
@@ -137,7 +137,7 @@ initResult, status := supervisor.WaitMilestoneOrCancel(ctx)
 这有点类似于其他语言中 Generator 中的 yield 操作，
 但区别在于分阶段任务在 `MarkAMileston` 之后并不会挂起，而是会继续执行。
 
-在任务外，我们可以通过 `Parsed()` 返回的 `PhasedTaskSupervisor` 来与任务交互，
+在任务外，我们可以通过 `Wraps.Parsed()` 返回的 `PhasedTaskSupervisor` 来与任务交互，
 达到确认阶段性成果、或者设置阶段性成果的 Deadline 超过则取消等操作：
 
 

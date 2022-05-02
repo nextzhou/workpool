@@ -1,4 +1,4 @@
-package workpool
+package wpcore
 
 import (
 	"time"
@@ -40,8 +40,8 @@ func WithExitTogether() Option {
 	}
 }
 
-func WithChain(wrappers ...TaskWrapper) Option {
-	reverse := make([]TaskWrapper, len(wrappers))
+func WithWrapsChain(wrappers ...TaskWrap) Option {
+	reverse := make([]TaskWrap, len(wrappers))
 	for i := range wrappers {
 		reverse[i] = wrappers[len(wrappers)-i-1]
 	}

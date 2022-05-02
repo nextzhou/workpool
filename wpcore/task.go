@@ -1,4 +1,4 @@
-package workpool
+package wpcore
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func (t Task) Go(ctx context.Context) TaskWait {
 		if err == nil {
 			errC <- nil
 		} else {
-			errC <- uniformError{error: err}
+			errC <- UniformError{Err: err}
 		}
 	}()
 
@@ -33,16 +33,14 @@ func (t Task) Go(ctx context.Context) TaskWait {
 		if err == nil {
 			return nil
 		}
-		if err, ok := err.(uniformError); ok {
-			return err.error
+		if err, ok := err.(UniformError); ok {
+			return err.Err
 		}
 		panic(err.(ErrPanic))
 	}
 }
 
-type TaskWrapper func(Task) Task
-
-var _ TaskWrapper = PanicAsError
+type TaskWrap func(Task) Task
 
 func PanicAsError(t Task) Task {
 	return func(ctx context.Context) (err error) {

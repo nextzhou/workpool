@@ -1,4 +1,4 @@
-package workpool
+package wpcore
 
 import (
 	"container/list"

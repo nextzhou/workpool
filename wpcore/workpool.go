@@ -1,4 +1,4 @@
-package workpool
+package wpcore
 
 import (
 	"context"
@@ -16,13 +16,13 @@ type Workpool struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	taskC          chan Task
-	err            unsafe.Pointer // *uniformError
+	err            unsafe.Pointer // *UniformError
 	unhandledPanic unsafe.Pointer // *ErrPanic
 	skippingNum    uint64
 }
 
 type conf struct {
-	taskChain      []TaskWrapper
+	taskChain      []TaskWrap
 	taskTimeout    time.Duration
 	parallelLimit  int
 	recover        Recover
@@ -79,15 +79,15 @@ func (w *Workpool) Wait() error {
 		panic(*(*ErrPanic)(ptr))
 	}
 
-	var err uniformError
+	var err UniformError
 	if ptr := atomic.LoadPointer(&w.err); ptr != nil {
-		err = *(*uniformError)(ptr)
+		err = *(*UniformError)(ptr)
 	}
 
-	if err.error == nil && w.skippingNum > 0 && !w.conf.ignoreSkipping {
+	if err.Err == nil && w.skippingNum > 0 && !w.conf.ignoreSkipping {
 		return ErrSkipPendingTask{SKippingTaskCount: uint(w.skippingNum)}
 	}
-	return err.error
+	return err.Err
 }
 
 func (w *Workpool) workLoop() {
@@ -122,7 +122,7 @@ func (w *Workpool) workLoop() {
 }
 
 func (w *Workpool) setErr(err error) {
-	if !atomic.CompareAndSwapPointer(&w.err, nil, unsafe.Pointer(&uniformError{err})) {
+	if !atomic.CompareAndSwapPointer(&w.err, nil, unsafe.Pointer(&UniformError{Err: err})) {
 		return
 	}
 	w.cancel()

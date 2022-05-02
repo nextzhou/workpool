@@ -1,11 +1,6 @@
-package workpool
+package wpcore
 
 import "fmt"
-
-// uniformError ensures that all errors have the same type in atomic.Value.CompareAndSwap().
-type uniformError struct {
-	error
-}
 
 // Recover provides a hook to catch the panic of a task running.
 type Recover = func(err ErrPanic) error
@@ -26,4 +21,13 @@ type ErrSkipPendingTask struct {
 
 func (e ErrSkipPendingTask) Error() string {
 	return fmt.Sprintf("skip %d pending tasks", e.SKippingTaskCount)
+}
+
+// UniformError ensures that all errors have the same type in atomic.Value.CompareAndSwap().
+type UniformError struct {
+	Err error
+}
+
+func (e UniformError) Error() string {
+	return e.Err.Error()
 }

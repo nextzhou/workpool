@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nextzhou/workpool/wpcore"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -72,7 +73,7 @@ func (s *taskStat) wrap(task Task) Task {
 func TestWorkpool(t *testing.T) {
 	Convey("workpool", t, func() {
 		Convey("uninitialized workpool", func() {
-			var w Workpool
+			var w wpcore.Workpool
 			So(func() { _ = w.Wait() }, ShouldPanic)
 		})
 		Convey("reuse workpool", func() {
@@ -153,12 +154,12 @@ func TestWorkpool(t *testing.T) {
 	})
 }
 
-func TestWithParallelLimit(t *testing.T) {
+func TestOptions_ParallelLimit(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	randomParallelNum := uint(rand.Uint32()%10) + 1 //nolint:gosec
-	Convey("WithParallelLimit"+strconv.Itoa(int(randomParallelNum)), t, func() {
+	Convey("Options.ParallelLimit"+strconv.Itoa(int(randomParallelNum)), t, func() {
 		var ts taskStat
-		w := New(context.Background(), WithParallelLimit(randomParallelNum))
+		w := New(context.Background(), Options.ParallelLimit(randomParallelNum))
 		for i := 0; i < 20; i++ {
 			w.Go(ts.wrap(ignoreCtxSleepTask))
 		}
@@ -170,19 +171,19 @@ func TestWithParallelLimit(t *testing.T) {
 	})
 }
 
-func TestWithTaskTimeout(t *testing.T) {
-	Convey("WithTaskTimeout", t, func() {
-		w := New(context.Background(), WithTaskTimeout(time.Millisecond))
+func TestOptions_TaskTimeout(t *testing.T) {
+	Convey("Options.TaskTimeout", t, func() {
+		w := New(context.Background(), Options.TaskTimeout(time.Millisecond))
 		w.Go(blockTask)
 		So(w.Wait(), ShouldBeNil)
 	})
 }
 
-func TestWithRecover(t *testing.T) {
-	Convey("WithRecover", t, func() {
+func TestOptions_Recover(t *testing.T) {
+	Convey("Options.Recover", t, func() {
 		Convey("convert panic to error", func() {
-			var panicErr ErrPanic
-			w := New(context.Background(), WithRecover(func(err ErrPanic) error {
+			var panicErr wpcore.ErrPanic
+			w := New(context.Background(), Options.Recover(func(err wpcore.ErrPanic) error {
 				panicErr = err
 				return errors.New("don't panic") //nolint:goerr113
 			}))
@@ -192,8 +193,8 @@ func TestWithRecover(t *testing.T) {
 			So(panicErr.Error(), ShouldContainSubstring, "foo")
 		})
 		Convey("convert panic to ok", func() {
-			var panicErr ErrPanic
-			w := New(context.Background(), WithRecover(func(err ErrPanic) error {
+			var panicErr wpcore.ErrPanic
+			w := New(context.Background(), Options.Recover(func(err wpcore.ErrPanic) error {
 				panicErr = err
 				return nil
 			}))
@@ -202,8 +203,8 @@ func TestWithRecover(t *testing.T) {
 			So(panicErr.Recover, ShouldEqual, "foo")
 		})
 		Convey("panic in custom recover", func() {
-			var panicErr ErrPanic
-			w := New(context.Background(), WithRecover(func(err ErrPanic) error {
+			var panicErr wpcore.ErrPanic
+			w := New(context.Background(), Options.Recover(func(err wpcore.ErrPanic) error {
 				panicErr = err
 				panic("panic in custom recover again")
 			}))
@@ -221,17 +222,17 @@ func TestWithRecover(t *testing.T) {
 	})
 }
 
-func TestWithExitTogether(t *testing.T) {
-	Convey("WithExitTogether", t, func() {
+func TestOptions_ExitTogether(t *testing.T) {
+	Convey("Options.ExitTogether", t, func() {
 		Convey("single task exit", func() {
-			w := New(context.Background(), WithExitTogether())
+			w := New(context.Background(), Options.ExitTogether())
 			start := time.Now()
 			w.Go(sleepTask)
 			So(w.Wait(), ShouldBeNil)
 			So(time.Since(start), ShouldBeGreaterThanOrEqualTo, sleepTime)
 		})
 		Convey("non error exit", func() {
-			w := New(context.Background(), WithExitTogether(), WithIgnoreSkippingPendingErr())
+			w := New(context.Background(), Options.ExitTogether(), Options.IgnoreSkippingPendingErr())
 			start := time.Now()
 			w.Go(sleepTask)
 			w.Go(emptyTask)
@@ -239,7 +240,7 @@ func TestWithExitTogether(t *testing.T) {
 			So(time.Since(start), ShouldBeLessThan, sleepTime)
 		})
 		Convey("error exit", func() {
-			w := New(context.Background(), WithExitTogether())
+			w := New(context.Background(), Options.ExitTogether())
 			start := time.Now()
 			w.Go(sleepTask)
 			w.Go(errTask)
@@ -247,7 +248,7 @@ func TestWithExitTogether(t *testing.T) {
 			So(time.Since(start), ShouldBeLessThan, sleepTime)
 		})
 		Convey("panic exit", func() {
-			w := New(context.Background(), WithExitTogether())
+			w := New(context.Background(), Options.ExitTogether())
 			start := time.Now()
 			w.Go(sleepTask)
 			w.Go(panicTask)
@@ -255,25 +256,26 @@ func TestWithExitTogether(t *testing.T) {
 			So(time.Since(start), ShouldBeLessThan, sleepTime)
 		})
 		Convey("panic as error exit", func() {
-			w := New(context.Background(), WithExitTogether(), WithChain(PanicAsError), WithIgnoreSkippingPendingErr())
+			o := Options
+			w := New(context.Background(), o.ExitTogether(), o.WrapsChain(Wraps.PanicAsError), o.IgnoreSkippingPendingErr())
 			start := time.Now()
 			w.Go(sleepTask)
 			w.Go(panicTask)
 			err := w.Wait()
 			So(err, ShouldBeError)
-			So(err, ShouldHaveSameTypeAs, ErrPanic{})
+			So(err, ShouldHaveSameTypeAs, wpcore.ErrPanic{})
 			So(time.Since(start), ShouldBeLessThan, sleepTime)
 		})
 		Convey("different error types", func() {
 			for i := 0; i < 10000; i++ {
-				w := New(context.Background(), WithChain(PanicAsError))
+				w := New(context.Background(), Options.WrapsChain(Wraps.PanicAsError))
 				w.Go(panicTask)
 				w.Go(errTask)
 				_ = w.Wait()
 			}
 		})
 		Convey("ignore panic exit", func() {
-			w := New(context.Background(), WithExitTogether(), WithRecover(func(err ErrPanic) error {
+			w := New(context.Background(), Options.ExitTogether(), Options.Recover(func(err wpcore.ErrPanic) error {
 				return nil
 			}))
 			start := time.Now()
@@ -285,8 +287,8 @@ func TestWithExitTogether(t *testing.T) {
 	})
 }
 
-func TestWithIgnoreSkippingPendingErr(t *testing.T) {
-	Convey("WithIgnoreSkippingPendingErr", t, func() {
+func TestOptions_IgnoreSkippingPendingErr(t *testing.T) {
+	Convey("Options.IgnoreSkippingPendingErr", t, func() {
 		Convey("don't ignore", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -302,14 +304,14 @@ func TestWithIgnoreSkippingPendingErr(t *testing.T) {
 			}
 			err := w.Wait()
 			So(err, ShouldBeError)
-			var skipErr ErrSkipPendingTask
+			var skipErr wpcore.ErrSkipPendingTask
 			So(errors.As(err, &skipErr), ShouldBeTrue)
 			So(skipErr.SKippingTaskCount, ShouldEqual, 100-ts.totalNum)
 		})
 		Convey("ignore", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			w := New(ctx, WithIgnoreSkippingPendingErr())
+			w := New(ctx, Options.IgnoreSkippingPendingErr())
 			var ts taskStat
 			w.Go(ts.wrap(emptyTask))
 			So(w.Wait(), ShouldBeNil)
@@ -318,10 +320,10 @@ func TestWithIgnoreSkippingPendingErr(t *testing.T) {
 	})
 }
 
-func TestWithChain(t *testing.T) {
-	Convey("WithChain", t, func() {
+func TestOptions_WrapsChain(t *testing.T) {
+	Convey("Options.WrapsChain", t, func() {
 		var processMarks []int
-		w1 := TaskWrapper(func(task Task) Task {
+		w1 := wpcore.TaskWrap(func(task Task) Task {
 			return func(ctx context.Context) error {
 				processMarks = append(processMarks, 1)
 				err := task(ctx)
@@ -329,7 +331,7 @@ func TestWithChain(t *testing.T) {
 				return err
 			}
 		})
-		w2 := TaskWrapper(func(task Task) Task {
+		w2 := wpcore.TaskWrap(func(task Task) Task {
 			return func(ctx context.Context) error {
 				processMarks = append(processMarks, 2)
 				err := task(ctx)
@@ -337,7 +339,7 @@ func TestWithChain(t *testing.T) {
 				return err
 			}
 		})
-		w3 := TaskWrapper(func(task Task) Task {
+		w3 := wpcore.TaskWrap(func(task Task) Task {
 			return func(ctx context.Context) error {
 				processMarks = append(processMarks, 3)
 				err := task(ctx)
@@ -345,7 +347,7 @@ func TestWithChain(t *testing.T) {
 				return err
 			}
 		})
-		w := New(context.Background(), WithChain(w1, w2, w3))
+		w := New(context.Background(), Options.WrapsChain(w1, w2, w3))
 		w.Go(func(context.Context) error {
 			processMarks = append(processMarks, 0)
 			return nil
@@ -383,20 +385,20 @@ func TestTask_Go(t *testing.T) {
 			So(func() { _ = wait() }, ShouldPanic)
 		})
 		Convey("panic as error", func() {
-			task := PanicAsError(panicTask)
+			task := Wraps.PanicAsError(panicTask)
 			wait := task.Go(context.Background())
 			err := wait()
 			So(err, ShouldBeError)
-			So(err, ShouldHaveSameTypeAs, ErrPanic{})
+			So(err, ShouldHaveSameTypeAs, wpcore.ErrPanic{})
 		})
 	})
 }
 
-func TestPhasedTask(t *testing.T) {
+func TestWraps_PhasedTask(t *testing.T) {
 	milestone1, milestone2 := "foo", "bar"
 	Convey("phased task", t, func() {
 		Convey("milestone", func() {
-			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+			task, supervisor := Wraps.Phased(func(ctx context.Context, helper wpcore.PhasedTaskHelper) error {
 				helper.MarkAMilestone(milestone1)
 				return nil
 			})
@@ -409,7 +411,7 @@ func TestPhasedTask(t *testing.T) {
 		})
 
 		Convey("wait a milestone", func() {
-			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+			task, supervisor := Wraps.Phased(func(ctx context.Context, helper wpcore.PhasedTaskHelper) error {
 				helper.MarkAMilestone(milestone1)
 				time.Sleep(sleepTime)
 				helper.MarkAMilestone(milestone2)
@@ -429,7 +431,7 @@ func TestPhasedTask(t *testing.T) {
 			So(time.Since(startAt), ShouldBeLessThan, sleepTime)
 			So(status.IsOK(), ShouldBeFalse)
 			So(milestone, ShouldBeNil)
-			So(status, ShouldEqual, phasedTaskStatusContextDone)
+			So(status.IsContextDone(), ShouldBeTrue)
 
 			ctx, _ = context.WithTimeout(context.Background(), 2*sleepTime) //nolint: govet
 			milestone, status = supervisor.WaitMilestone(ctx)
@@ -441,24 +443,24 @@ func TestPhasedTask(t *testing.T) {
 			ctx, _ = context.WithTimeout(context.Background(), sleepTime) //nolint: govet
 			milestone, status = supervisor.WaitMilestone(ctx)
 
-			So(status, ShouldEqual, phasedTaskStatusTaskDone)
+			So(status.IsTaskDone(), ShouldBeTrue)
 			So(milestone, ShouldBeNil)
 
 			So(wait(), ShouldBeNil)
 		})
 
 		Convey("phased task without milestone", func() {
-			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+			task, supervisor := Wraps.Phased(func(ctx context.Context, helper wpcore.PhasedTaskHelper) error {
 				return nil
 			})
 			task.Go(context.Background())
 			ctx, _ := context.WithTimeout(context.Background(), sleepTime) //nolint: govet
 			milestone, status := supervisor.WaitMilestone(ctx)
-			So(status, ShouldEqual, phasedTaskStatusTaskDone)
+			So(status.IsTaskDone(), ShouldBeTrue)
 			So(milestone, ShouldBeNil)
 		})
 		Convey("cancel task when milestone timeout", func() {
-			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+			task, supervisor := Wraps.Phased(func(ctx context.Context, helper wpcore.PhasedTaskHelper) error {
 				helper.MarkAMilestone(milestone1)
 				<-ctx.Done()
 				helper.MarkAMilestone(milestone2)
@@ -473,7 +475,7 @@ func TestPhasedTask(t *testing.T) {
 			So(milestone, ShouldEqual, milestone1)
 
 			milestone, status = supervisor.WaitMilestoneOrCancel(ctx)
-			So(status, ShouldEqual, phasedTaskStatusContextDone)
+			So(status.IsContextDone(), ShouldBeTrue)
 			So(milestone, ShouldBeNil)
 
 			So(wait(), ShouldBeNil)
@@ -482,7 +484,7 @@ func TestPhasedTask(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
-			task, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+			task, supervisor := wpcore.Phased(func(ctx context.Context, helper wpcore.PhasedTaskHelper) error {
 				helper.MarkAMilestone(milestone1)
 				return nil
 			})
@@ -496,7 +498,7 @@ func TestPhasedTask(t *testing.T) {
 			So(wp.Wait(), ShouldBeError, "skip 1 pending tasks")
 		})
 		Convey("not-running phased task", func() {
-			_, supervisor := Phased(func(ctx context.Context, helper PhasedTaskHelper) error {
+			_, supervisor := Wraps.Phased(func(ctx context.Context, helper wpcore.PhasedTaskHelper) error {
 				helper.MarkAMilestone(milestone1)
 				return nil
 			})
@@ -522,7 +524,7 @@ func BenchmarkGo0(b *testing.B) {
 
 func BenchmarkGo1(b *testing.B) {
 	b.ReportAllocs()
-	wp := New(context.Background(), WithParallelLimit(1))
+	wp := New(context.Background(), Options.ParallelLimit(1))
 	for i := 0; i < b.N; i++ {
 		wp.Go(emptyTask)
 	}
@@ -531,7 +533,7 @@ func BenchmarkGo1(b *testing.B) {
 
 func BenchmarkGo10(b *testing.B) {
 	b.ReportAllocs()
-	wp := New(context.Background(), WithParallelLimit(10))
+	wp := New(context.Background(), Options.ParallelLimit(10))
 	for i := 0; i < b.N; i++ {
 		wp.Go(emptyTask)
 	}
@@ -540,7 +542,7 @@ func BenchmarkGo10(b *testing.B) {
 
 func BenchmarkGo100(b *testing.B) {
 	b.ReportAllocs()
-	wp := New(context.Background(), WithParallelLimit(100))
+	wp := New(context.Background(), Options.ParallelLimit(100))
 	for i := 0; i < b.N; i++ {
 		wp.Go(emptyTask)
 	}
@@ -549,7 +551,7 @@ func BenchmarkGo100(b *testing.B) {
 
 func BenchmarkGo1000(b *testing.B) {
 	b.ReportAllocs()
-	wp := New(context.Background(), WithParallelLimit(1000))
+	wp := New(context.Background(), Options.ParallelLimit(1000))
 	for i := 0; i < b.N; i++ {
 		wp.Go(emptyTask)
 	}
