@@ -68,3 +68,11 @@ func WithParallelLimit(limit uint) Option {
 		},
 	}
 }
+
+func WithDontSkipTask() Option {
+	return commonOption{
+		f: func(w *Workpool) {
+			w.conf.dontSkip = true
+		},
+	}
+}

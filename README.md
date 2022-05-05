@@ -39,14 +39,15 @@ err := wp.Wait() // 在这里等待所有任务完成，并处理错误与 panic
 
 `Option` 可在 `New()` 传入，例如 `wp := New(ctx, Options.TaskTimeout(time.Second), Options.Chain(Wraps.PanicAsErr))`
 
-| Option                                 | 功能                                       |
-|:---------------------------------------|:-----------------------------------------|
-| Options.TaskTimeout(time.Duration)     | 为每个任务设置独立的超时                             |
-| Options.ParallelLimit(uint)            | 子任务最大并发限制                                |
-| Options.ExitTogether()                 | 当有任意子任务完成时通知其他子任务退出，一般在启动多个常驻服务时使用       |
-| Options.WrapsChain(...wpcore.TaskWrap) | 为每个`Task`添加传入的`wpcore.TaskWrap`，作用顺序从做至右 |
-| Options.Recover(wpcore.Recover)        | 自定义当子任务panic时如何处理                        |
-| Options.IgnoreSkippingPendingErr()     | 跳过了部分未执行任务不视为错误                          |
+| Option                                 | 功能                                                   |
+|:---------------------------------------|:-----------------------------------------------------|
+| Options.TaskTimeout(time.Duration)     | 为每个任务设置独立的超时                                         |
+| Options.ParallelLimit(uint)            | 子任务最大并发限制                                            |
+| Options.ExitTogether()                 | 当有任意子任务完成时通知其他子任务退出，一般在启动多个常驻服务时使用                   |
+| Options.WrapsChain(...wpcore.TaskWrap) | 为每个`Task`添加传入的`wpcore.TaskWrap`，作用顺序从左至右             |
+| Options.Recover(wpcore.Recover)        | 自定义当子任务panic时如何处理                                    |
+| Options.IgnoreSkippingPendingErr()     | 跳过了部分未执行任务不视为错误                                      |
+| Options.DontSkipTask()                 | 默认情况下若`ctx`结束了，则后续添加的 `Task` 会直接跳过。添加该选项后则任何情况下都不会跳过 |
 
 ### Wraps
 

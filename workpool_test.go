@@ -357,6 +357,25 @@ func TestOptions_WrapsChain(t *testing.T) {
 	})
 }
 
+func TestOptions_DontSkipTask(t *testing.T) {
+	Convey("Options.DontSkipTask", t, func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		Convey("skip padding task when ctx done", func() {
+			wp := New(ctx)
+			wp.Go(emptyTask)
+			So(wp.Wait(), ShouldBeError, wpcore.ErrSkipPendingTask{SKippingTaskCount: 1})
+		})
+
+		Convey("dont skip any task even though ctx done", func() {
+			wp := New(ctx, Options.DontSkipTask())
+			wp.Go(emptyTask)
+			So(wp.Wait(), ShouldBeNil)
+		})
+	})
+}
+
 func TestTask_Go(t *testing.T) {
 	Convey("go single task without pool", t, func() {
 		Convey("just go", func() {

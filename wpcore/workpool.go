@@ -28,6 +28,7 @@ type conf struct {
 	recover        Recover
 	exitTogether   bool
 	ignoreSkipping bool
+	dontSkip       bool
 }
 
 func New(ctx context.Context, opts ...Option) *Workpool {
@@ -49,7 +50,7 @@ func New(ctx context.Context, opts ...Option) *Workpool {
 }
 
 func (w *Workpool) Go(task Task) {
-	if w.ctx.Err() != nil {
+	if w.ctx.Err() != nil && !w.conf.dontSkip {
 		atomic.AddUint64(&w.skippingNum, 1)
 		return
 	}
@@ -130,9 +131,9 @@ func (w *Workpool) setErr(err error) {
 
 func (w *Workpool) runTask(task Task) error {
 	ctx := w.ctx
-	if ctx.Err() != nil {
+	if ctx.Err() != nil && !w.conf.dontSkip {
 		atomic.AddUint64(&w.skippingNum, 1)
-		return nil //nolint:nilerr
+		return nil
 	}
 	if timeout := w.conf.taskTimeout; timeout > 0 {
 		var cancel context.CancelFunc

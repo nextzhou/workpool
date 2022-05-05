@@ -58,3 +58,7 @@ func (options) IgnoreSkippingPendingErr() wpcore.Option {
 func (options) ParallelLimit(limit uint) wpcore.Option {
 	return wpcore.WithParallelLimit(limit)
 }
+
+func (options) DontSkipTask() wpcore.Option {
+	return wpcore.WithDontSkipTask()
+}
