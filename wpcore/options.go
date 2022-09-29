@@ -53,10 +53,11 @@ func WithWrapsChain(wrappers ...TaskWrap) Option {
 	}
 }
 
-func WithIgnoreSkippingPendingErr() Option {
+func SkipPendingTask(asError bool) Option {
 	return commonOption{
 		f: func(w *Workpool) {
-			w.conf.ignoreSkipping = true
+			w.conf.skipPending = true
+			w.conf.skipAsErr = asError
 		},
 	}
 }
@@ -69,10 +70,17 @@ func WithParallelLimit(limit uint) Option {
 	}
 }
 
+// Deprecated: tasks will not be skipped by default now.
+// Use SkipPendingTask(false) instead.
+func WithIgnoreSkippingPendingErr() Option {
+	return SkipPendingTask(false)
+}
+
+// Deprecated: tasks will not be skipped by default now.
 func WithDontSkipTask() Option {
 	return commonOption{
 		f: func(w *Workpool) {
-			w.conf.dontSkip = true
+			w.conf.skipPending = false
 		},
 	}
 }

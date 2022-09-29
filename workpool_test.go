@@ -144,7 +144,8 @@ func TestWorkpool(t *testing.T) {
 		})
 		Convey("skip pending task error", func() {
 			ctx, cancel := context.WithCancel(context.Background())
-			w := New(ctx)
+			// tasks will not be skipped by default now.
+			w := New(ctx, Options.SkipPendingTask(true))
 			w.Go(emptyTask)
 			runtime.Gosched()
 			cancel()
@@ -289,25 +290,6 @@ func TestOptions_ExitTogether(t *testing.T) {
 
 func TestOptions_IgnoreSkippingPendingErr(t *testing.T) {
 	Convey("Options.IgnoreSkippingPendingErr", t, func() {
-		Convey("don't ignore", func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			w := New(ctx)
-			var ts taskStat
-			rand.Seed(time.Now().UnixNano())
-			cancelIdx := rand.Intn(100) //nolint:gosec
-			for i := 0; i < 100; i++ {
-				if i == cancelIdx {
-					cancel()
-				}
-				w.Go(ts.wrap(emptyTask))
-			}
-			err := w.Wait()
-			So(err, ShouldBeError)
-			var skipErr wpcore.ErrSkipPendingTask
-			So(errors.As(err, &skipErr), ShouldBeTrue)
-			So(skipErr.SKippingTaskCount, ShouldEqual, 100-ts.totalNum)
-		})
 		Convey("ignore", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
@@ -361,9 +343,9 @@ func TestOptions_DontSkipTask(t *testing.T) {
 	Convey("Options.DontSkipTask", t, func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-
 		Convey("skip padding task when ctx done", func() {
-			wp := New(ctx)
+			// tasks will not be skipped by default now.
+			wp := New(ctx, Options.SkipPendingTask(true))
 			wp.Go(emptyTask)
 			So(wp.Wait(), ShouldBeError, wpcore.ErrSkipPendingTask{SKippingTaskCount: 1})
 		})
@@ -372,6 +354,39 @@ func TestOptions_DontSkipTask(t *testing.T) {
 			wp := New(ctx, Options.DontSkipTask())
 			wp.Go(emptyTask)
 			So(wp.Wait(), ShouldBeNil)
+		})
+	})
+}
+
+func TestOptions_SkipPendingTask(t *testing.T) {
+	Convey("Options.SkipPendingTask", t, func() {
+		Convey("don't ignore", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			w := New(ctx, Options.SkipPendingTask(true))
+			var ts taskStat
+			rand.Seed(time.Now().UnixNano())
+			cancelIdx := rand.Intn(100) //nolint:gosec
+			for i := 0; i < 100; i++ {
+				if i == cancelIdx {
+					cancel()
+				}
+				w.Go(ts.wrap(emptyTask))
+			}
+			err := w.Wait()
+			So(err, ShouldBeError)
+			var skipErr wpcore.ErrSkipPendingTask
+			So(errors.As(err, &skipErr), ShouldBeTrue)
+			So(skipErr.SKippingTaskCount, ShouldEqual, 100-ts.totalNum)
+		})
+		Convey("ignore", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			w := New(ctx, Options.SkipPendingTask(false))
+			var ts taskStat
+			w.Go(ts.wrap(emptyTask))
+			So(w.Wait(), ShouldBeNil)
+			So(ts.totalNum, ShouldEqual, 0)
 		})
 	})
 }
@@ -508,7 +523,7 @@ func TestWraps_PhasedTask(t *testing.T) {
 				return nil
 			})
 
-			wp := New(ctx)
+			wp := New(ctx, Options.SkipPendingTask(true))
 			wp.Go(task)
 			milestone, status := supervisor.WaitMilestone(ctx)
 			So(milestone, ShouldBeNil)

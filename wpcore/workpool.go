@@ -22,13 +22,13 @@ type Workpool struct {
 }
 
 type conf struct {
-	taskChain      []TaskWrap
-	taskTimeout    time.Duration
-	parallelLimit  int
-	recover        Recover
-	exitTogether   bool
-	ignoreSkipping bool
-	dontSkip       bool
+	taskChain     []TaskWrap
+	taskTimeout   time.Duration
+	parallelLimit int
+	recover       Recover
+	exitTogether  bool
+	skipAsErr     bool
+	skipPending   bool
 }
 
 func New(ctx context.Context, opts ...Option) *Workpool {
@@ -50,7 +50,7 @@ func New(ctx context.Context, opts ...Option) *Workpool {
 }
 
 func (w *Workpool) Go(task Task) {
-	if w.ctx.Err() != nil && !w.conf.dontSkip {
+	if w.ctx.Err() != nil && w.conf.skipPending {
 		atomic.AddUint64(&w.skippingNum, 1)
 		return
 	}
@@ -85,7 +85,7 @@ func (w *Workpool) Wait() error {
 		err = *(*UniformError)(ptr)
 	}
 
-	if err.Err == nil && w.skippingNum > 0 && !w.conf.ignoreSkipping {
+	if err.Err == nil && w.skippingNum > 0 && w.conf.skipAsErr {
 		return ErrSkipPendingTask{SKippingTaskCount: uint(w.skippingNum)}
 	}
 	return err.Err
@@ -131,7 +131,7 @@ func (w *Workpool) setErr(err error) {
 
 func (w *Workpool) runTask(task Task) error {
 	ctx := w.ctx
-	if ctx.Err() != nil && !w.conf.dontSkip {
+	if ctx.Err() != nil && w.conf.skipPending {
 		atomic.AddUint64(&w.skippingNum, 1)
 		return nil
 	}

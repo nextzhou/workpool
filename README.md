@@ -4,7 +4,7 @@
 [![golangci-lint](https://github.com/nextzhou/workpool/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/nextzhou/workpool/actions/workflows/golangci-lint.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nextzhou/workpool)](https://goreportcard.com/report/github.com/nextzhou/workpool)
 
-workpool 实现了一个 [fork-join](https://zh.wikipedia.org/wiki/Fork-join%E6%A8%A1%E5%9E%8B) 模型的并发控制库，使得并发任务更安全、可控。
+workpool 实现了一个 [fork-join](https://zh.wikipedia.org/wiki/Fork-join%E6%A8%A1%E5%9E%8B) 模型的结构化并发库，使得并发任务更安全、可控。
 
 
 ```go
@@ -39,15 +39,14 @@ err := wp.Wait() // 在这里等待所有任务完成，并处理错误与 panic
 
 `Option` 可在 `New()` 传入，例如 `wp := New(ctx, Options.TaskTimeout(time.Second), Options.Chain(Wraps.PanicAsErr))`
 
-| Option                                 | 功能                                                   |
-|:---------------------------------------|:-----------------------------------------------------|
-| Options.TaskTimeout(time.Duration)     | 为每个任务设置独立的超时                                         |
-| Options.ParallelLimit(uint)            | 子任务最大并发限制                                            |
-| Options.ExitTogether()                 | 当有任意子任务完成时通知其他子任务退出，一般在启动多个常驻服务时使用                   |
-| Options.WrapsChain(...wpcore.TaskWrap) | 为每个`Task`添加传入的`wpcore.TaskWrap`，作用顺序从左至右             |
-| Options.Recover(wpcore.Recover)        | 自定义当子任务panic时如何处理                                    |
-| Options.IgnoreSkippingPendingErr()     | 跳过了部分未执行任务不视为错误                                      |
-| Options.DontSkipTask()                 | 默认情况下若`ctx`结束了，则后续添加的 `Task` 会直接跳过。添加该选项后则任何情况下都不会跳过 |
+| Option                                 | 功能                                                                      |
+|:---------------------------------------|:------------------------------------------------------------------------|
+| Options.TaskTimeout(time.Duration)     | 为每个任务设置独立的超时                                                            |
+| Options.ParallelLimit(uint)            | 子任务最大并发限制                                                               |
+| Options.ExitTogether()                 | 当有任意子任务完成时通知其他子任务退出，一般在启动多个常驻服务时使用                                      |
+| Options.WrapsChain(...wpcore.TaskWrap) | 为每个`Task`添加传入的`wpcore.TaskWrap`，作用顺序从左至右                                |
+| Options.Recover(wpcore.Recover)        | 自定义当子任务panic时如何处理                                                       |
+| Options.SkipPendingTask(bool)          | 默认情况下，就算`ctx`结束了，后续添加的 `Task` 也不会被跳过。添加该选项后则可以直接跳过 `ctx` 结束后添加的新 `Task` |
 
 ### Wraps
 

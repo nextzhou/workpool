@@ -6,7 +6,7 @@ import (
 	"github.com/nextzhou/workpool/wpcore"
 )
 
-//nolint: gochecknoglobals
+// nolint: gochecknoglobals,nolintlint
 var (
 	New     = wpcore.New
 	Options options
@@ -51,14 +51,22 @@ func (options) WrapsChain(wraps ...wpcore.TaskWrap) wpcore.Option {
 	return wpcore.WithWrapsChain(wraps...)
 }
 
-func (options) IgnoreSkippingPendingErr() wpcore.Option {
-	return wpcore.WithIgnoreSkippingPendingErr()
+func (options) SkipPendingTask(asError bool) wpcore.Option {
+	return wpcore.SkipPendingTask(asError)
 }
 
 func (options) ParallelLimit(limit uint) wpcore.Option {
 	return wpcore.WithParallelLimit(limit)
 }
 
+// Deprecated: tasks will not be skipped by default now.
+// Use SkipPendingTask(false) instead.
+func (options) IgnoreSkippingPendingErr() wpcore.Option {
+	return wpcore.SkipPendingTask(false)
+}
+
+// Deprecated: tasks will not be skipped by default now.
+// If you want to skip the pending task when the context canceled, use SkipPendingTask() instead.
 func (options) DontSkipTask() wpcore.Option {
 	return wpcore.WithDontSkipTask()
 }
