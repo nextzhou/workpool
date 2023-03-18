@@ -60,11 +60,11 @@ wp := New(ctx, Options.WrapsChain(Wraps.PanicAsErr)) // Used in conjunction with
 wp.Go(Wraps.PanicAsErr(task))               // Used on a single `Task`.
 ```
 
-| TaskWrapper        | Description                                                                                                                     |
-|:-------------------|:--------------------------------------------------------------------------------------------------------------------------------|
-| Wraps.PanicAsError | Converts panic in child tasks into an error.                                                                                    |
-| Wraps.Phased       | Converts phased tasks into normal tasks. See [Phased Tasks](#Phased Tasks) for details.                                         |
-| Wraps.RunStopTask | Converts tasks that stop execution into tasks controlled by `ctx`. See [Task with Separate Stop Function](#Task with Separate Stop Function) for details. |
+| TaskWrapper        | Description                                                                                                                                                       |
+|:-------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Wraps.PanicAsError | Converts panic in child tasks into an error.                                                                                                                      |
+| Wraps.Phased       | Converts phased tasks into normal tasks. See [Phased Task](#phased-task) for details.                                                                                        |
+| Wraps.RunStopTask | Converts tasks that stop execution into tasks controlled by `ctx`. See [Task with Separate Stop Function](#task-with-separate-stop-function) for details. |
 
 ## Single Task
 
