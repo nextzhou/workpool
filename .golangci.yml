@@ -1,15 +1,13 @@
 linters:
   enable:
-    - deadcode
+    - unused
     - errcheck
     - gosimple
     - govet
     - ineffassign
     - staticcheck
-    - structcheck
     - typecheck
     - unused
-    - varcheck
     - asciicheck
     - bodyclose
     - cyclop
@@ -42,7 +40,6 @@ linters:
     - gomodguard
     - goprintffuncname
     - gosec
-    - ifshort
     - importas
     - lll
     - makezero
@@ -67,3 +64,18 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
+
+linters-settings:
+  depguard:
+    rules:
+      main:
+        allow:
+          - $gostd
+          - github.com/nextzhou/workpool
+          - github.com/smartystreets/goconvey
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - revive
