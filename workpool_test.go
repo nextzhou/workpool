@@ -96,10 +96,21 @@ func TestWorkpool(t *testing.T) {
 			}
 			So(w.Wait(), ShouldBeError, "bar")
 		})
-		Convey("panic on master goroutine", func() {
+		Convey("panic on Wait goroutine", func() {
 			w := New(context.Background())
 			w.Go(panicTask)
 			So(func() { _ = w.Wait() }, ShouldPanic)
+		})
+		Convey("panic on Go goroutine", func() {
+			w := New(context.Background())
+			w.Go(panicTask)
+			time.Sleep(sleepTime)
+			So(func() { w.Go(emptyTask) }, ShouldPanic)
+
+			w = New(context.Background(), Options.SkipPendingTask(false))
+			w.Go(panicTask)
+			time.Sleep(sleepTime)
+			So(func() { w.Go(emptyTask) }, ShouldPanic)
 		})
 		Convey("context cancel tasks", func() {
 			ctx, cancel := context.WithCancel(context.Background())

@@ -25,7 +25,8 @@ err := wp.Wait() // Wait for all tasks to complete here and handle errors and pa
 ## Core features:
 
 - [x] Lightweight fork-join concurrency model with lazy expansion of worker goroutines.
-- [x] Collects errors and panics from subtasks and aggregates them in the `Workpool.Wait()` function.
+- [x] Collects errors from subtasks and aggregates them in the `Workpool.Wait()` function.
+- [x] The subtask panic will be thrown in the parent goroutine, thus avoiding the entire process from crashing.
 - [x] Controls the lifecycle of subtasks through `Context`, ensuring that all worker goroutines are immediately released when `Workpool.Wait()` is called.
 - [x] A single `Task` detached from the `Workpool` can also be executed asynchronously safely.
 - [x] Supports phased tasks and can interactively obtain phased results from asynchronous tasks.

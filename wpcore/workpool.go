@@ -50,6 +50,9 @@ func New(ctx context.Context, opts ...Option) *Workpool {
 }
 
 func (w *Workpool) Go(task Task) {
+	if ptr := atomic.LoadPointer(&w.unhandledPanic); ptr != nil {
+		panic(*(*ErrPanic)(ptr))
+	}
 	if w.ctx.Err() != nil && w.conf.skipPending {
 		atomic.AddUint64(&w.skippingNum, 1)
 		return
